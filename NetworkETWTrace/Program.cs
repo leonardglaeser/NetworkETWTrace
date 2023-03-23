@@ -1,17 +1,40 @@
 ﻿using Microsoft.Diagnostics.Tracing;
 using Microsoft.Diagnostics.Tracing.Session;
 
+var tokenSource = new CancellationTokenSource();
+var token = tokenSource.Token;
 
-using (var NetEventSession = new TraceEventSession("NetEventSession")){
-    NetEventSession.EnableProvider("Microsoft-Windows-TCPIP");
-    using (var source = new ETWTraceEventSource("NetEventSession",TraceEventSourceType.Session))
+var netCaptureTask = new Task(() =>
+{
+    token.ThrowIfCancellationRequested();
+    using (var netEventSession = new TraceEventSession("NetEventSession"))
     {
-        // Add Callback to Parser?
-        source.Dynamic.All += (TraceEvent data) => {
-            Console.WriteLine($"{data.EventName} : {data.FormattedMessage}");
-        };
-        source.Process(); // Invoke the callbacks
+        netEventSession.EnableProvider("Microsoft-Windows-TCPIP");
+        using (var source = new ETWTraceEventSource("NetEventSession", TraceEventSourceType.Session))
+        {
+            // Register Callback in Parser?
+            source.Dynamic.All += (TraceEvent data) =>
+            {
+                Console.WriteLine($"{data.EventName} : {data.FormattedMessage}");
+                if (token.IsCancellationRequested)
+                {
+                    //Todo: find a better way
+                    netEventSession.DisableProvider("Microsoft-Windows-TCPIP");
+                    source.Dispose();
+                }
+                
+            };
+            source.Process(); // Invoke the event processing with callbacks
+                
+        }
     }
-    //Todo:  not closing the session as never gracefully stopping
-    //Not closing the
-}
+},token);
+
+//Auch nicht so richtig schön?!
+netCaptureTask.Start();
+
+//Wait for Keypress
+Console.ReadLine();
+tokenSource.Cancel();
+tokenSource.Dispose();
+
