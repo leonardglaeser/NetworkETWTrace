@@ -16,16 +16,11 @@ var netCaptureTask = new Task(() =>
             source.Dynamic.All += (TraceEvent data) =>
             {
                 Console.WriteLine($"{data.EventName} : {data.FormattedMessage}");
-                if (token.IsCancellationRequested)
-                {
-                    //Todo: find a better way
-                    netEventSession.DisableProvider("Microsoft-Windows-TCPIP");
-                    source.Dispose();
-                }
-                
+             
             };
-            source.Process(); // Invoke the event processing with callbacks
-                
+            //Todo: find a better way (is that better?)
+            token.Register(()=> netEventSession.Stop());
+            source.Process(); // Invoke the event processing with callbacks (forever)
         }
     }
 },token);
